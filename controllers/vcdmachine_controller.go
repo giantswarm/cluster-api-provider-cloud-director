@@ -18,6 +18,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
+	"github.com/go-logr/logr"
+
 	"github.com/pkg/errors"
 	cpiutil "github.com/vmware/cloud-provider-for-cloud-director/pkg/util"
 	"github.com/vmware/cloud-provider-for-cloud-director/pkg/vcdsdk"
@@ -392,6 +395,11 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	}
 	// The vApp should have already been created, so this is more of a Get of the vApp
 	vAppName := cluster.Name
+	vmName, err := getVMName(machine, vcdMachine, log)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	vApp, err := vdcManager.Vdc.GetVAppByName(vAppName, true)
 	if err != nil {
 		updatedErr := capvcdRdeManager.AddToErrorSet(ctx, capisdk.VCDClusterVappCreationError, "", machine.Name, fmt.Sprintf("%v", err))
@@ -440,7 +448,10 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 		cloudInitInput.HTTPProxy = vcdCluster.Spec.ProxyConfigSpec.HTTPProxy
 		cloudInitInput.HTTPSProxy = vcdCluster.Spec.ProxyConfigSpec.HTTPSProxy
 		cloudInitInput.NoProxy = vcdCluster.Spec.ProxyConfigSpec.NoProxy
-		cloudInitInput.MachineName = machine.Name
+		cloudInitInput.MachineName = vmName
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		// TODO: After tenants has access to siteId, populate siteId to cloudInitInput as opposed to the site
 		cloudInitInput.VcdHostFormatted = strings.ReplaceAll(vcdCluster.Spec.Site, "/", "\\/")
 		cloudInitInput.NvidiaGPU = vcdMachine.Spec.EnableNvidiaGPU
@@ -474,7 +485,7 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	}
 
 	vmExists := true
-	vm, err := vApp.GetVMByName(machine.Name, true)
+	vm, err := vApp.GetVMByName(vmName, true)
 	if err != nil && err != govcd.ErrorEntityNotFound {
 		updatedErr := capvcdRdeManager.AddToErrorSet(ctx, capisdk.VCDMachineCreationError, "", machine.Name, fmt.Sprintf("%v", err))
 		if updatedErr != nil {
@@ -489,7 +500,7 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 		log.Info("Adding infra VM for the machine")
 
 		// vcda-4391 fixed
-		err = vdcManager.AddNewVM(machine.Name, vcdCluster.Name, 1,
+		err = vdcManager.AddNewVM(vmName, vcdCluster.Name, 1,
 			vcdMachine.Spec.Catalog, vcdMachine.Spec.Template, vcdMachine.Spec.PlacementPolicy,
 			vcdMachine.Spec.SizingPolicy, vcdMachine.Spec.StorageProfile, "", false)
 		if err != nil {
@@ -500,7 +511,7 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 			return ctrl.Result{}, errors.Wrapf(err, "Error provisioning infrastructure for the machine; unable to create VM [%s] in vApp [%s]",
 				machine.Name, vApp.VApp.Name)
 		}
-		vm, err = vApp.GetVMByName(machine.Name, true)
+		vm, err = vApp.GetVMByName(vmName, true)
 		if err != nil {
 			err1 := capvcdRdeManager.AddToErrorSet(ctx, capisdk.VCDMachineCreationError, "", machine.Name, fmt.Sprintf("%v", err))
 			if err1 != nil {
@@ -845,6 +856,32 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	return ctrl.Result{}, nil
 }
 
+func getVMName(machine *clusterv1.Machine, vcdMachine *infrav1.VCDMachine, log logr.Logger) (string, error) {
+	if vcdMachine.Spec.VmNamingTemplate == "" {
+		return machine.Name, nil
+	}
+
+	vmNameTemplate, err := template.New("vmname").
+		Funcs(sprig.TxtFuncMap()).
+		Parse(vcdMachine.Spec.VmNamingTemplate)
+	if err != nil {
+		log.Error(err, "Error while parsing VmNamingTemplate of VCDMachine")
+		return "", errors.Wrapf(err, "Error while parsing VmNamingTemplate of VCDMachine")
+	}
+
+	buf := new(bytes.Buffer)
+	err = vmNameTemplate.Execute(buf, map[string]interface{}{
+		"machine":    machine,
+		"vcdMachine": vcdMachine,
+	})
+	if err != nil {
+		log.Error(err, "Error while generating VM Name by using VmNamingTemplate of VCDMachine")
+		return "", errors.Wrapf(err, "Error while generating VM Name by using VmNamingTemplate of VCDMachine")
+	}
+
+	return buf.String(), nil
+}
+
 // getPrimaryNetwork returns the primary network based on vm.NetworkConnectionSection.PrimaryNetworkConnectionIndex
 // It is not possible to assume vm.NetworkConnectionSection.NetworkConnection[0] is the primary network when there are
 // multiple networks attached to the VM.
@@ -947,7 +984,7 @@ func ensureNetworkIsAttachedToVApp(vdcManager *vcdsdk.VdcManager, vApp *govcd.VA
 
 	_, err = vApp.AddOrgNetwork(&govcd.VappNetworkSettings{}, ovdcNetwork.OrgVDCNetwork, false)
 	if err != nil {
-		return fmt.Errorf("unable to add ovdc network [%s] to vApp [%s]: [%v]",
+		return fmt.Errorf("unable to add ovdc network [%v] to vApp [%s]: [%v]",
 			ovdcNetwork, vApp.VApp.Name, err)
 	}
 
@@ -1150,7 +1187,11 @@ func (r *VCDMachineReconciler) reconcileDelete(ctx context.Context, cluster *clu
 			log.Error(err, "failed to remove VCDMachineError from RDE", "rdeID", vcdCluster.Status.InfraId)
 		}
 		// delete the vm
-		vm, err := vApp.GetVMByName(machine.Name, true)
+		vmName, err := getVMName(machine, vcdMachine, log)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		vm, err := vApp.GetVMByName(vmName, true)
 		if err != nil {
 			if err == govcd.ErrorEntityNotFound {
 				log.Error(err, "Error while deleting the machine; VM  not found")
