@@ -1,36 +1,12 @@
-
-
 version: 2.1
 
-orbs:
-  architect: giantswarm/architect@4.27.0
-
-workflows:
+jobs:
   build:
-    jobs:
-      - architect/go-build:
-          context: architect
-          name: go-build
-          binary: cluster-api-provider-cloud-director
-          resource_class: xlarge
-          filters:
-            tags:
-              only: /^v.*/
-
-      - architect/push-to-docker:
-          context: architect
-          name: push-cluster-api-provider-cloud-director-to-quay
-          image: "quay.io/giantswarm/cluster-api-provider-cloud-director-vcd"
-          username_envar: "QUAY_USERNAME"
-          password_envar: "QUAY_PASSWORD"
-          requires:
-            - go-build
-
-      - architect/push-to-docker:
-          context: "architect"
-          name: push-deletion-blocker-operator-to-docker
-          image: "docker.io/giantswarm/cluster-api-provider-cloud-director-vcd"
-          username_envar: "DOCKER_USERNAME"
-          password_envar: "DOCKER_PASSWORD"
-          requires:
-            - go-build
+    working_directory: ~/repo
+    docker:
+      - image: cimg/go:1.17
+    steps:
+      - checkout
+      - run:
+          name: Build binary
+          command: make build
