@@ -1065,7 +1065,7 @@ func getNetworkConnection(connections *types.NetworkConnectionSection, ovdcNetwo
 		Network:                 ovdcNetwork,
 		NeedsCustomization:      false,
 		IsConnected:             true,
-		IPAddressAllocationMode: "POOL",
+		IPAddressAllocationMode: "DHCP",
 		NetworkAdapterType:      "VMXNET3",
 	}
 }
