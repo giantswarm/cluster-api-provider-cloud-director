@@ -782,7 +782,7 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 			networkMetadata.WriteString("set -x\n")
 			// Process Networks
 			for _, network := range vm.VM.NetworkConnectionSection.NetworkConnection {
-				unitFile := network.Network + ".network"
+				unitFile := "/etc/systemd/network/" + network.Network + ".network"
 				networkMetadata.WriteString("echo [Match]>" + unitFile + "\n")
 				// Process NIC network properties and subnet CIDR
 				OrgVdcNetwork, _ := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
@@ -791,16 +791,17 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
 				ignitionAddress := fmt.Sprint(network.IPAddress) + "/" + fmt.Sprint(netmaskCidr)
 				// Write details to NIC ignition
-				networkMetadata.WriteString("echo MACAddress=" + network.MACAddress + ">" + unitFile + "\n")
-				networkMetadata.WriteString("echo [Network]\nAddress=" + ignitionAddress + ">" + unitFile + "\n")
+				networkMetadata.WriteString("echo MACAddress=" + network.MACAddress + ">>" + unitFile + "\n")
+				networkMetadata.WriteString("echo [Network]>>" + unitFile + "\n")
+				networkMetadata.WriteString("echo Address=" + ignitionAddress + ">>" + unitFile + "\n")
 				// Add gateway and DNS only for primary NIC
 				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
-					networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">" + unitFile + "\n")
+					networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">>" + unitFile + "\n")
 					if IpScope.DNS1 != "" {
-					  networkMetadata.WriteString("echo DNS1=" + IpScope.DNS1 + ">" + unitFile + "\n")
+					  networkMetadata.WriteString("echo DNS1=" + IpScope.DNS1 + ">>" + unitFile + "\n")
 					}
 					if IpScope.DNS2 != "" {
-						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">" + unitFile + "\n")
+						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">>" + unitFile + "\n")
 					}
 					// Just for testing
                     primaryIgnitionAddress = ignitionAddress
