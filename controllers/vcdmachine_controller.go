@@ -777,12 +777,13 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 		} else if bootstrapFormat == BootstrapFormatIgnition {
 			// Process NIC
 			var networkMetadata strings.Builder
+			var primaryIgnitionAddress, primaryGateway, primaryDns1, primaryDns2 string
 			// Process Networks
 			for _, network := range vm.VM.NetworkConnectionSection.NetworkConnection {
 				// Name NIC ignition file after the network it connects to
 				networkMetadata.WriteString("- name: " + network.Network + ".network\n")
 				// Process NIC network properties and subnet CIDR
-				OrgVdcNetwork, err := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
+				OrgVdcNetwork, _ := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
 				IpScope := OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0]
 				netmask := net.ParseIP(IpScope.Netmask)
 				netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
@@ -800,10 +801,10 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 					networkMetadata.WriteString("    DNS2=" + IpScope.DNS2 + "\n")
 					}
 					// Just for testing
-                    primaryIgnitionAddress := ignitionAddress
-					primaryGateway := IpScope.Gateway
-					primaryDns1 := IpScope.DNS1
-					primaryDns2 := IpScope.DNS2
+                    primaryIgnitionAddress = ignitionAddress
+					primaryGateway = IpScope.Gateway
+					primaryDns1 = IpScope.DNS1
+					primaryDns2 = IpScope.DNS2
 				}
 			}
 
@@ -816,7 +817,7 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				"guestinfo.ignition.dns1":                 primaryDns1,
 				"guestinfo.ignition.dns2":                 primaryDns2,
 				"disk.enableUUID":                         "1",
-				"guestinfo.test":                          networkMetadata,
+				"guestinfo.test":                          networkMetadata.String(),
 			}
 		}
 
