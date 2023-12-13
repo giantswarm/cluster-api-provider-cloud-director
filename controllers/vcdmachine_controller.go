@@ -789,8 +789,8 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
 				ignitionAddress := fmt.Sprint(network.IPAddress) + "/" + fmt.Sprint(netmaskCidr)
 				// Write details to NIC ignition
-				networkMetadata.WriteString("  contents: |\n  [Match]\n  MACAddress=" + network.MACAddress + "\n")
-				networkMetadata.WriteString("    [Network]\n  Address=" + ignitionAddress + "\n")
+				networkMetadata.WriteString("  contents: |\n    [Match]\n    MACAddress=" + network.MACAddress + "\n")
+				networkMetadata.WriteString("    [Network]\n    Address=" + ignitionAddress + "\n")
 				// Add gateway and DNS only for primary NIC
 				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
 					networkMetadata.WriteString("    Gateway=" + IpScope.Gateway + "\n")
