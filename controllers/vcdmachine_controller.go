@@ -793,12 +793,17 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				// Add gateway and DNS only for primary NIC
 				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
 					networkMetadata.WriteString("    Gateway=" + IpScope.Gateway + "\n")
-					if Scope.DNS1 != "" {
+					if IpScope.DNS1 != "" {
 					  networkMetadata.WriteString("    DNS1=" + IpScope.DNS1 + "\n")
 					}
 					if IpScope.DNS2 != "" {
 					networkMetadata.WriteString("    DNS2=" + IpScope.DNS2 + "\n")
 					}
+					// Just for testing
+                    primaryIgnitionAddress := ignitionAddress
+					primaryGateway := IpScope.Gateway
+					primaryDns1 := IpScope.DNS1
+					primaryDns2 := IpScope.DNS2
 				}
 			}
 
@@ -806,10 +811,10 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				"guestinfo.ignition.config.data":          b64BootstrapData,
 				"guestinfo.ignition.config.data.encoding": "base64",
 				"guestinfo.ignition.vmname":               vmName,
-				"guestinfo.ignition.machineaddress":       ignitionAddress,
-				"guestinfo.ignition.gateway":              OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0].Gateway,
-				"guestinfo.ignition.dns1":                 OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0].DNS1,
-				"guestinfo.ignition.dns2":                 OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0].DNS2,
+				"guestinfo.ignition.machineaddress":       primaryIgnitionAddress,
+				"guestinfo.ignition.gateway":              primaryGateway,
+				"guestinfo.ignition.dns1":                 primaryDns1,
+				"guestinfo.ignition.dns2":                 primaryDns2,
 				"disk.enableUUID":                         "1",
 				"guestinfo.test":                          networkMetadata,
 			}
