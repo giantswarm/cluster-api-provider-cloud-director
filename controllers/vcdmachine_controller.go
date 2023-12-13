@@ -776,12 +776,14 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 			}
 		} else if bootstrapFormat == BootstrapFormatIgnition {
 			// Process NIC
-			var networkMetadata strings.Builder
 			var primaryIgnitionAddress, primaryGateway, primaryDns1, primaryDns2 string
+			var networkMetadata strings.Builder
+			networkMetadata.WriteString("#!/bin/sh\n")
+			networkMetadata.WriteString("set -x\n")
 			// Process Networks
 			for _, network := range vm.VM.NetworkConnectionSection.NetworkConnection {
-				// Name NIC ignition file after the network it connects to
-				networkMetadata.WriteString("- name: " + network.Network + ".network\n")
+				unitFile := network.Network + ".network"
+				networkMetadata.WriteString("echo [Match]>" + unitFile + "\n")
 				// Process NIC network properties and subnet CIDR
 				OrgVdcNetwork, _ := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
 				IpScope := OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0]
@@ -789,16 +791,16 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
 				ignitionAddress := fmt.Sprint(network.IPAddress) + "/" + fmt.Sprint(netmaskCidr)
 				// Write details to NIC ignition
-				networkMetadata.WriteString("  contents: |\n    [Match]\n    MACAddress=" + network.MACAddress + "\n")
-				networkMetadata.WriteString("    [Network]\n    Address=" + ignitionAddress + "\n")
+				networkMetadata.WriteString("echo MACAddress=" + network.MACAddress + ">" + unitFile + "\n")
+				networkMetadata.WriteString("echo [Network]\nAddress=" + ignitionAddress + ">" + unitFile + "\n")
 				// Add gateway and DNS only for primary NIC
 				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
-					networkMetadata.WriteString("    Gateway=" + IpScope.Gateway + "\n")
+					networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">" + unitFile + "\n")
 					if IpScope.DNS1 != "" {
-					  networkMetadata.WriteString("    DNS1=" + IpScope.DNS1 + "\n")
+					  networkMetadata.WriteString("echo DNS1=" + IpScope.DNS1 + ">" + unitFile + "\n")
 					}
 					if IpScope.DNS2 != "" {
-					networkMetadata.WriteString("    DNS2=" + IpScope.DNS2 + "\n")
+						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">" + unitFile + "\n")
 					}
 					// Just for testing
                     primaryIgnitionAddress = ignitionAddress
