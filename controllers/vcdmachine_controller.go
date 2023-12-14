@@ -775,8 +775,8 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				"disk.enableUUID":             "1",
 			}
 		} else if bootstrapFormat == BootstrapFormatIgnition {
-			// Process NIC
-			var primaryIgnitionAddress, primaryGateway, primaryDns1, primaryDns2 string
+			// This section creates the bash script that will create the networkd units
+			// Stored in metadata and consumed by ignition
 			var networkMetadata strings.Builder
 			networkMetadata.WriteString("#!/bin/sh\n")
 			networkMetadata.WriteString("set -x\n")
@@ -803,24 +803,16 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 					if IpScope.DNS2 != "" {
 						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">>" + unitFile + "\n")
 					}
-					// Just for testing
-                    primaryIgnitionAddress = ignitionAddress
-					primaryGateway = IpScope.Gateway
-					primaryDns1 = IpScope.DNS1
-					primaryDns2 = IpScope.DNS2
 				}
+				networkMetadata.WriteString("echo sudo systemctl restart systemd-networkd>>" + unitFile + "\n")
 			}
 
 			keyVals = map[string]string{
 				"guestinfo.ignition.config.data":          b64BootstrapData,
 				"guestinfo.ignition.config.data.encoding": "base64",
 				"guestinfo.ignition.vmname":               vmName,
-				"guestinfo.ignition.machineaddress":       primaryIgnitionAddress,
-				"guestinfo.ignition.gateway":              primaryGateway,
-				"guestinfo.ignition.dns1":                 primaryDns1,
-				"guestinfo.ignition.dns2":                 primaryDns2,
 				"disk.enableUUID":                         "1",
-				"guestinfo.test":                          networkMetadata.String(),
+				"guestinfo.ignition.network":              networkMetadata.String(),
 			}
 		}
 
