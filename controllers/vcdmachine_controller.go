@@ -804,8 +804,8 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">>" + unitFile + "\n")
 					}
 				}
-				networkMetadata.WriteString("echo sudo systemctl restart systemd-networkd>>" + unitFile + "\n")
 			}
+			networkMetadata.WriteString("sudo systemctl restart systemd-networkd\n")
 
 			keyVals = map[string]string{
 				"guestinfo.ignition.config.data":          b64BootstrapData,
