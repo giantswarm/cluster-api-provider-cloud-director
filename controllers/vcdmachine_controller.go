@@ -798,10 +798,10 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
 					networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">>" + unitFile + "\n")
 					if IpScope.DNS1 != "" {
-					  networkMetadata.WriteString("echo DNS1=" + IpScope.DNS1 + ">>" + unitFile + "\n")
+					  networkMetadata.WriteString("echo DNS=" + IpScope.DNS1 + ">>" + unitFile + "\n")
 					}
 					if IpScope.DNS2 != "" {
-						networkMetadata.WriteString("echo DNS2=" + IpScope.DNS2 + ">>" + unitFile + "\n")
+						networkMetadata.WriteString("echo DNS=" + IpScope.DNS2 + ">>" + unitFile + "\n")
 					}
 				}
 			}
