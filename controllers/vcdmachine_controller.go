@@ -775,44 +775,21 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 				"disk.enableUUID":             "1",
 			}
 		} else if bootstrapFormat == BootstrapFormatIgnition {
-			// This section creates the bash script that will create the networkd units
-			// Stored in metadata and consumed by ignition
-			var networkMetadata strings.Builder
-			networkMetadata.WriteString("#!/bin/sh\n")
-			networkMetadata.WriteString("set -x\n")
-			// Process Networks
-			for _, network := range vm.VM.NetworkConnectionSection.NetworkConnection {
-				unitFile := "/etc/systemd/network/" + network.Network + ".network"
-				networkMetadata.WriteString("echo [Match]>" + unitFile + "\n")
-				// Process NIC network properties and subnet CIDR
-				OrgVdcNetwork, _ := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
-				IpScope := OrgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0]
-				netmask := net.ParseIP(IpScope.Netmask)
-				netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
-				ignitionAddress := fmt.Sprint(network.IPAddress) + "/" + fmt.Sprint(netmaskCidr)
-				// Write details to NIC ignition
-				networkMetadata.WriteString("echo MACAddress=" + network.MACAddress + ">>" + unitFile + "\n")
-				networkMetadata.WriteString("echo [Network]>>" + unitFile + "\n")
-				networkMetadata.WriteString("echo Address=" + ignitionAddress + ">>" + unitFile + "\n")
-				// Add gateway and DNS only for primary NIC
-				if network.NetworkConnectionIndex == vm.VM.NetworkConnectionSection.PrimaryNetworkConnectionIndex {
-					networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">>" + unitFile + "\n")
-					if IpScope.DNS1 != "" {
-					  networkMetadata.WriteString("echo DNS=" + IpScope.DNS1 + ">>" + unitFile + "\n")
-					}
-					if IpScope.DNS2 != "" {
-						networkMetadata.WriteString("echo DNS=" + IpScope.DNS2 + ">>" + unitFile + "\n")
-					}
+			networkMetadata, err := generateNetworkInitializationScriptForIgnition(vm.VM.NetworkConnectionSection, vdcManager)
+			if err != nil {
+				updatedErr := capvcdRdeManager.AddToErrorSet(ctx, capisdk.VCDMachineCreationError, "", machine.Name, fmt.Sprintf("%v", err))
+				if updatedErr != nil {
+					log.Error(updatedErr, "failed to add VCDMachineCreationError into RDE", "rdeID", vcdCluster.Status.InfraId)
 				}
-			}
-			networkMetadata.WriteString("sudo systemctl restart systemd-networkd\n")
 
+				return ctrl.Result{}, errors.Wrapf(err, "Error while generating network initialization script for ignition [%s/%s]", vcdCluster.Name, vm.VM.Name)
+			}
 			keyVals = map[string]string{
 				"guestinfo.ignition.config.data":          b64BootstrapData,
 				"guestinfo.ignition.config.data.encoding": "base64",
 				"guestinfo.ignition.vmname":               vmName,
 				"disk.enableUUID":                         "1",
-				"guestinfo.ignition.network":              networkMetadata.String(),
+				"guestinfo.ignition.network":              networkMetadata,
 			}
 		}
 
@@ -975,6 +952,47 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	vcdMachine.Status.NvidiaGPUEnabled = vcdMachine.Spec.EnableNvidiaGPU
 	conditions.MarkTrue(vcdMachine, ContainerProvisionedCondition)
 	return ctrl.Result{}, nil
+}
+
+// generateNetworkInitializationScriptForIgnition creates the bash script that will create the networkd units stored in metadata
+// and consumed by ignition
+func generateNetworkInitializationScriptForIgnition(networkConnection *types.NetworkConnectionSection, vdcManager *vcdsdk.VdcManager) (string, error) {
+	var networkMetadata strings.Builder
+	networkMetadata.WriteString("#!/bin/sh\n")
+	networkMetadata.WriteString("set -x\n")
+
+	for _, network := range networkConnection.NetworkConnection {
+		unitFile := "/etc/systemd/network/" + network.Network + ".network"
+		networkMetadata.WriteString("echo [Match]>" + unitFile + "\n")
+		// Process NIC network properties and subnet CIDR
+		orgVdcNetwork, err := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
+		if err != nil {
+			return "", err
+		}
+
+		IpScope := orgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0]
+		netmask := net.ParseIP(IpScope.Netmask)
+		netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
+
+		ignitionAddress := fmt.Sprint(network.IPAddress) + "/" + fmt.Sprint(netmaskCidr)
+		// Write details to NIC ignition
+		networkMetadata.WriteString("echo MACAddress=" + network.MACAddress + ">>" + unitFile + "\n")
+		networkMetadata.WriteString("echo [Network]>>" + unitFile + "\n")
+		networkMetadata.WriteString("echo Address=" + ignitionAddress + ">>" + unitFile + "\n")
+		// Add gateway and DNS only for primary NIC
+		if network.NetworkConnectionIndex == networkConnection.PrimaryNetworkConnectionIndex {
+			networkMetadata.WriteString("echo Gateway=" + IpScope.Gateway + ">>" + unitFile + "\n")
+			if IpScope.DNS1 != "" {
+				networkMetadata.WriteString("echo DNS=" + IpScope.DNS1 + ">>" + unitFile + "\n")
+			}
+			if IpScope.DNS2 != "" {
+				networkMetadata.WriteString("echo DNS=" + IpScope.DNS2 + ">>" + unitFile + "\n")
+			}
+		}
+	}
+	networkMetadata.WriteString("sudo systemctl restart systemd-networkd\n")
+
+	return networkMetadata.String(), nil
 }
 
 func getVMName(machine *clusterv1.Machine, vcdMachine *infrav1.VCDMachine, log logr.Logger) (string, error) {
