@@ -24,7 +24,7 @@ jobs:
             echo "$QUAY_PASSWORD" | docker login quay.io --username $QUAY_USERNAME --password-stdin
             
             IMG_TAG=$(git rev-parse --short HEAD)
-            docker tag quay.io/cluster-api-provider-cloud-director:latest quay.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
+            docker tag cluster-api-provider-cloud-director:latest quay.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
             docker push quay.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
 
             echo "Pushed to quay.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG"
@@ -35,7 +35,7 @@ jobs:
             echo "$DOCKER_PASSWORD" | docker login --username $DOCKER_USERNAME --password-stdin
 
             IMG_TAG=$(git rev-parse --short HEAD)
-            docker tag quay.io/cluster-api-provider-cloud-director:latest docker.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
+            docker tag cluster-api-provider-cloud-director:latest docker.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
             docker push docker.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG
 
             echo "Pushed to docker.io/giantswarm/cluster-api-provider-cloud-director-vcd:$IMG_TAG"
