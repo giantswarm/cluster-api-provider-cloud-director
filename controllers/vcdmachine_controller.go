@@ -479,7 +479,7 @@ func (r *VCDMachineReconciler) reconcileVMBootstrap(ctx context.Context, vcdClie
 
 			keyVals = map[string]string{
 				"guestinfo.ignition.config.data":          gzipb64encodedData,
-				"guestinfo.ignition.config.data.encoding": "gzip+base64",
+				"guestinfo.ignition.config.data.encoding": "gz+base64",
 				"guestinfo.ignition.vmname":               vmName,
 				"disk.enableUUID":                         "1",
 				"guestinfo.ignition.network":              networkMetadata,
