@@ -474,7 +474,7 @@ func (r *VCDMachineReconciler) reconcileVMBootstrap(ctx context.Context, vcdClie
 			// GZip then Base64 encode bootstrap data
 			gzipb64encodedData, err := gzipAndBase64Encode([]byte(b64BootstrapData))
 			if err != nil {
-				log.Fatalf("Error: %v", err)
+				log.Error(err, "Failed to gzip and base64 encode data")
 			}
 
 			keyVals = map[string]string{
@@ -615,7 +615,7 @@ func gzipAndBase64Encode(data []byte) (string, error) {
 	}
 
 	// Encode the compressed data to Base64
-	gzipb64Encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+	gzipb64Encoded := b64.StdEncoding.EncodeToString(buf.Bytes())
 
 	return gzipb64Encoded, nil
 }
