@@ -472,7 +472,7 @@ func (r *VCDMachineReconciler) reconcileVMBootstrap(ctx context.Context, vcdClie
 			}
 
 			// GZip then Base64 encode bootstrap data
-			gzipb64encodedData, err := gzipAndBase64Encode(b64BootstrapData)
+			gzipb64encodedData, err := gzipAndBase64Encode([]byte(b64BootstrapData))
 			if err != nil {
 				log.Fatalf("Error: %v", err)
 			}
