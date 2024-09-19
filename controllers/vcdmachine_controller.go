@@ -474,7 +474,7 @@ func (r *VCDMachineReconciler) reconcileVMBootstrap(ctx context.Context, vcdClie
 			// GZip then Base64 encode bootstrap data
 			gzipb64encodedData, err := gzipAndBase64Encode([]byte(bootstrapData))
 			if err != nil {
-				log.Error(err, "Failed to gzip and base64 encode data")
+				return errors.Wrapf(err, "Failed to gzip and base64 encode bootstrap data for ignition [%s/%s]", vcdCluster.Name, vm.VM.Name)
 			}
 
 			keyVals = map[string]string{
