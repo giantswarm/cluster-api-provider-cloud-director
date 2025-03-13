@@ -7,6 +7,7 @@ package controllers
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	_ "embed" // this needs go 1.16+
 	b64 "encoding/base64"
@@ -779,11 +780,11 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	}
 	if vmStatus != "POWERED_ON" {
 		// try to power on the VM
-		b64BootstrapData := b64.StdEncoding.EncodeToString(bootstrapDataBytes)
 
 		var keyVals map[string]string
 
 		if bootstrapFormat == BootstrapFormatCloudConfig {
+			b64BootstrapData := b64.StdEncoding.EncodeToString(bootstrapDataBytes)
 			keyVals = map[string]string{
 				"guestinfo.userdata":          b64BootstrapData,
 				"guestinfo.userdata.encoding": "base64",
@@ -796,9 +797,15 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 
 				return ctrl.Result{}, errors.Wrapf(err, "Error while generating network initialization script for ignition [%s/%s]", vcdCluster.Name, vm.VM.Name)
 			}
+
+			gzipb64encodedData, err := gzipAndBase64Encode(bootstrapDataBytes)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "Failed to gzip and base64 encode bootstrap data for ignition [%s/%s]", vcdCluster.Name, vm.VM.Name)
+			}
+
 			keyVals = map[string]string{
-				"guestinfo.ignition.config.data":          b64BootstrapData,
-				"guestinfo.ignition.config.data.encoding": "base64",
+				"guestinfo.ignition.config.data":          gzipb64encodedData,
+				"guestinfo.ignition.config.data.encoding": "gz+base64",
 				"guestinfo.ignition.vmname":               vmName,
 				"disk.enableUUID":                         "1",
 				"guestinfo.ignition.network":              networkMetadata,
@@ -960,6 +967,30 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	vcdMachine.Status.NvidiaGPUEnabled = vcdMachine.Spec.EnableNvidiaGPU
 	conditions.MarkTrue(vcdMachine, ContainerProvisionedCondition)
 	return ctrl.Result{}, nil
+}
+
+func gzipAndBase64Encode(data []byte) (string, error) {
+	// Create a buffer to hold the compressed data
+	var buf bytes.Buffer
+
+	// Create a new gzip writer that writes to the buffer
+	gzipWriter := gzip.NewWriter(&buf)
+
+	// Write the original data to the gzip writer
+	_, err := gzipWriter.Write(data)
+	if err != nil {
+		return "", err
+	}
+
+	// Close the gzip writer to flush and complete the compression
+	if err := gzipWriter.Close(); err != nil {
+		return "", err
+	}
+
+	// Encode the compressed data to Base64
+	gzipb64Encoded := b64.StdEncoding.EncodeToString(buf.Bytes())
+
+	return gzipb64Encoded, nil
 }
 
 // generateNetworkInitializationScriptForIgnition creates the bash script that will create the networkd units stored in metadata
