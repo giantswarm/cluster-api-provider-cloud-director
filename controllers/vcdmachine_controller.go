@@ -95,6 +95,9 @@ const Mebibyte = 1048576
 //go:embed cluster_scripts/cloud_init.tmpl
 var cloudInitScriptTemplate string
 
+//go:embed cluster_scripts/ignition_network_init_script.tmpl
+var ignitionNetworkInitScriptTemplate string
+
 // VCDMachineReconciler reconciles a VCDMachine object
 type VCDMachineReconciler struct {
 	client.Client
