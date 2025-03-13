@@ -1108,28 +1108,33 @@ func ensureNetworkIsAttachedToVApp(vdcManager *vcdsdk.VdcManager, vApp *govcd.VA
 	return nil
 }
 
-func (r *VCDMachineReconciler) getBootstrapData(ctx context.Context, machine *clusterv1.Machine) (string, error) {
+func (r *VCDMachineReconciler) getBootstrapData(ctx context.Context, machine *clusterv1.Machine) (string, string, error) {
 	log := ctrl.LoggerFrom(ctx)
 	if machine.Spec.Bootstrap.DataSecretName == nil {
-		return "", errors.New("error retrieving bootstrap data: linked Machine's bootstrap.dataSecretName is nil")
+		return "", "", errors.New("error retrieving bootstrap data: linked Machine's bootstrap.dataSecretName is nil")
 	}
 
 	s := &corev1.Secret{}
 	key := client.ObjectKey{Namespace: machine.GetNamespace(), Name: *machine.Spec.Bootstrap.DataSecretName}
 	if err := r.Client.Get(ctx, key, s); err != nil {
-		return "", errors.Wrapf(err,
+		return "", "", errors.Wrapf(err,
 			"failed to retrieve bootstrap data secret for VCDMachine %s/%s",
 			machine.GetNamespace(), machine.GetName())
 	}
 
-	value, ok := s.Data["value"]
+	format, ok := s.Data["format"]
 	if !ok {
-		return "", errors.New("error retrieving bootstrap data: secret value key is missing")
+		return "", "", errors.New("error retrieving bootstrap data: secret format key is missing")
 	}
 
-	log.V(2).Info(fmt.Sprintf("Auto-generated bootstrap script: [%s]", string(value)))
+	value, ok := s.Data["value"]
+	if !ok {
+		return "", "", errors.New("error retrieving bootstrap data: secret value key is missing")
+	}
 
-	return string(value), nil
+	log.V(2).Info(fmt.Sprintf("Auto-generated bootstrap format: [%s] script: [%s]", string(format), string(value)))
+
+	return string(format), string(value), nil
 }
 
 func (r *VCDMachineReconciler) reconcileDelete(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine,
