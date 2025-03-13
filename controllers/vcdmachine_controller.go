@@ -12,6 +12,7 @@ import (
 	b64 "encoding/base64"
 	"fmt"
 	"math"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -931,6 +932,45 @@ func (r *VCDMachineReconciler) reconcileNormal(ctx context.Context, cluster *clu
 	vcdMachine.Status.NvidiaGPUEnabled = vcdMachine.Spec.EnableNvidiaGPU
 	conditions.MarkTrue(vcdMachine, ContainerProvisionedCondition)
 	return ctrl.Result{}, nil
+}
+
+// generateNetworkInitializationScriptForIgnition creates the bash script that will create the networkd units stored in metadata
+// and consumed by ignition
+func generateNetworkInitializationScriptForIgnition(networkConnection *types.NetworkConnectionSection, vdcManager *vcdsdk.VdcManager) (string, error) {
+	ignitionNetworkInitTemplate, err := template.New("ignition_network_init_script_template").Parse(ignitionNetworkInitScriptTemplate)
+	if err != nil {
+		return "", errors.Wrapf(err, "Error parsing ignitionNetworkInitScriptTemplate [%s]", ignitionNetworkInitTemplate.Name())
+	}
+
+	var sectionInputConfigs []IgnitionNetworkInitScriptSectionInput
+	for _, network := range networkConnection.NetworkConnection {
+		// Process NIC network properties and subnet CIDR
+		orgVdcNetwork, err := vdcManager.Vdc.GetOrgVdcNetworkByName(network.Network, true)
+		if err != nil {
+			return "", err
+		}
+
+		ipScope := orgVdcNetwork.OrgVDCNetwork.Configuration.IPScopes.IPScope[0]
+		netmask := net.ParseIP(ipScope.Netmask)
+		netmaskCidr, _ := net.IPMask(netmask.To4()).Size()
+
+		sectionInputConfigs = append(sectionInputConfigs, IgnitionNetworkInitScriptSectionInput{
+			Primary:     network.NetworkConnectionIndex == networkConnection.PrimaryNetworkConnectionIndex,
+			Network:     network.Network,
+			IPAddress:   network.IPAddress,
+			MACAddress:  network.MACAddress,
+			NetmaskCidr: netmaskCidr,
+			Gateway:     ipScope.Gateway,
+			DNS1:        ipScope.DNS1,
+			DNS2:        ipScope.DNS2,
+		})
+	}
+
+	buff := bytes.Buffer{}
+	if err = ignitionNetworkInitTemplate.Execute(&buff, sectionInputConfigs); err != nil {
+		return "", errors.Wrapf(err, "Error rendering ignition network init template: [%s]", ignitionNetworkInitTemplate.Name())
+	}
+	return buff.String(), nil
 }
 
 func getVMName(machine *clusterv1.Machine, vcdMachine *infrav1.VCDMachine, log logr.Logger) (string, error) {
