@@ -82,6 +82,11 @@ const (
 	VcdResourceTypeVM = "virtual-machine"
 )
 
+const (
+	BootstrapFormatCloudConfig = "cloud-config"
+	BootstrapFormatIgnition    = "ignition"
+)
+
 const Mebibyte = 1048576
 
 // The following `embed` directives read the file in the mentioned path and copy the content into the declared variable.
