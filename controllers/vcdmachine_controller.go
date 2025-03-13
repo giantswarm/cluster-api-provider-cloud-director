@@ -64,6 +64,17 @@ type CloudInitScriptInput struct {
 	ClusterID           string // cluster id
 }
 
+type IgnitionNetworkInitScriptSectionInput struct {
+	Primary     bool
+	Network     string
+	IPAddress   string
+	MACAddress  string
+	NetmaskCidr int
+	Gateway     string
+	DNS1        string
+	DNS2        string
+}
+
 const (
 	ReclaimPolicyDelete = "Delete"
 	ReclaimPolicyRetain = "Retain"
