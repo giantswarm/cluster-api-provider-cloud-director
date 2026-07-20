@@ -17,22 +17,21 @@ limitations under the License.
 package v1beta2
 
 import (
-	"fmt"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
+	"context"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
-    "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
 var vcdmachinelog = logf.Log.WithName("vcdmachine-resource")
 
 func (r *VCDMachine) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithValidator(r).
+		WithDefaulter(r).
 		Complete()
 }
 
@@ -40,48 +39,44 @@ func (r *VCDMachine) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 //+kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta2-vcdmachine,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=vcdmachines,verbs=create;update,versions=v1beta2,name=mutation.vcdmachine.infrastructure.cluster.x-k8s.io,admissionReviewVersions=v1
 
-var _ webhook.Defaulter = &VCDMachine{}
+var _ admission.Defaulter[*VCDMachine] = &VCDMachine{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *VCDMachine) Default() {
-	vcdmachinelog.Info("default", "name", r.Name)
+// Default implements admission.Defaulter so a webhook will be registered for the type
+func (r *VCDMachine) Default(ctx context.Context, obj *VCDMachine) error {
+	vcdmachinelog.Info("default", "name", obj.Name)
 
 	// TODO(user): fill in your defaulting logic.
+	return nil
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 //+kubebuilder:webhook:path=/validate-infrastructure-cluster-x-k8s-io-v1beta2-vcdmachine,mutating=false,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=vcdmachines,verbs=create;update,versions=v1beta2,name=validation.vcdmachine.infrastructure.cluster.x-k8s.io,admissionReviewVersions=v1
 
-var _ webhook.Validator = &VCDMachine{}
+var _ admission.Validator[*VCDMachine] = &VCDMachine{}
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCDMachine) ValidateCreate() (admission.Warnings, error) {
-	vcdmachinelog.Info("validate create", "name", r.Name)
+// ValidateCreate implements admission.Validator so a webhook will be registered for the type
+func (r *VCDMachine) ValidateCreate(ctx context.Context, obj *VCDMachine) (admission.Warnings, error) {
+	vcdmachinelog.Info("validate create", "name", obj.Name)
 
 	// TODO(user): fill in your validation logic upon object creation.
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCDMachine) ValidateUpdate(oldRaw runtime.Object) (admission.Warnings, error) {
-	vcdmachinelog.Info("validate update", "name", r.Name)
-
-	old, ok := oldRaw.(*VCDMachine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected an VCDMachine but got a %T", oldRaw))
-	}
+// ValidateUpdate implements admission.Validator so a webhook will be registered for the type
+func (r *VCDMachine) ValidateUpdate(ctx context.Context, oldObj, newObj *VCDMachine) (admission.Warnings, error) {
+	vcdmachinelog.Info("validate update", "name", newObj.Name)
 
 	// the relation between CR->VM_NAME have to be consistent therefore VmNamingTemplate is immutable
-	if r.Spec.VmNamingTemplate != old.Spec.VmNamingTemplate {
+	if newObj.Spec.VmNamingTemplate != oldObj.Spec.VmNamingTemplate {
 		return nil, field.Forbidden(field.NewPath("spec.vmNamingTemplate"), "cannot be modified")
 	}
 
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *VCDMachine) ValidateDelete() (admission.Warnings, error) {
-	vcdmachinelog.Info("validate delete", "name", r.Name)
+// ValidateDelete implements admission.Validator so a webhook will be registered for the type
+func (r *VCDMachine) ValidateDelete(ctx context.Context, obj *VCDMachine) (admission.Warnings, error) {
+	vcdmachinelog.Info("validate delete", "name", obj.Name)
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil

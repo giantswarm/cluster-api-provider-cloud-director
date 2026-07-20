@@ -25,8 +25,7 @@ import (
 var vcdmachinetemplatelog = logf.Log.WithName("vcdmachinetemplate-resource")
 
 func (r *VCDMachineTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
 		Complete()
 }
 
